@@ -10,7 +10,7 @@
 <body>
 <div id="mxLoader">Conectando con Macroxel Hospital…</div>
 <script>
-/* MACROXEL v1.0.214 · entrada GitHub dinámica, sin Firebase fija */
+/* MACROXEL v1.0.215 · entrada GitHub dinámica, sin Firebase fija */
 (function(){'use strict';
   const LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
   const routeKey='mx_route_operational_db_v1208::'+location.origin+location.pathname.replace(/\/index\.html?$/i,'/');
@@ -23,22 +23,32 @@
   window.mxRouteIsolationKey=routeKey;
 })();
 (()=>{
-  const CENTRAL_BASE=location.origin+'/ECOSISTEMA-MACROXEL-HOSPITAL/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/';
-  const SOURCE='https://raw.githubusercontent.com/sistemasmacroxel-create/ECOSISTEMA-MACROXEL-HOSPITAL/main/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html';
+  const CENTRAL_BASE='https://sistemasmacroxel-create.github.io/ECOSISTEMA-MACROXEL-HOSPITAL/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/';
+  const SOURCES=[
+    'https://raw.githubusercontent.com/sistemasmacroxel-create/ECOSISTEMA-MACROXEL-HOSPITAL/main/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html',
+    'https://raw.githubusercontent.com/sistemasmacroxel-create/ECOSISTEMA-MACROXEL-HOSPITAL/f0c945022ef1ed0358c970855d74abd6ccad375d/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html',
+    CENTRAL_BASE+'index.html'
+  ];
   function render(html){
     if(!/<html(?:\s|>)/i.test(html))throw new Error('Contenido central inválido');
     if(!/<base\s/i.test(html))html=html.replace(/<head([^>]*)>/i,'<head$1><base href="'+CENTRAL_BASE+'">');
     document.open();document.write(html);document.close();
   }
+  async function fetchSource(src){
+    const sep=src.includes('?')?'&':'?';
+    const r=await fetch(src+sep+'mxv=1.0.215&t='+Date.now(),{cache:'no-store',mode:'cors'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const html=await r.text();
+    if(!/<html(?:\s|>)/i.test(html))throw new Error('Contenido central inválido');
+    return html;
+  }
   (async()=>{
-    try{
-      const r=await fetch(SOURCE+'?mxv=1.0.214&t='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, max-age=0'}});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      render(await r.text());
-    }catch(err){
-      const e=document.getElementById('mxLoader');if(e)e.innerHTML='No se pudo cargar Macroxel Hospital.<br><small style="opacity:.75">Verifica Internet y vuelve a abrir este visor desde el Sistema Principal.</small>';
-      console.error(err);
+    let lastErr=null;
+    for(const src of SOURCES){
+      try{render(await fetchSource(src));return}catch(err){lastErr=err}
     }
+    const e=document.getElementById('mxLoader');if(e)e.innerHTML='No se pudo cargar Macroxel Hospital.<br><small style="opacity:.75">No se pudo recuperar el código del Control Central. Actualiza la página en unos segundos.</small>';
+    console.error(lastErr);
   })();
 })();
 </script>
