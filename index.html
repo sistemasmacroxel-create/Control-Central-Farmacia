@@ -10,7 +10,7 @@
 <body>
 <div id="mxLoader">Conectando con Macroxel Hospital…</div>
 <script>
-/* MACROXEL v1.0.212 · entrada GitHub dinámica, sin Firebase fija */
+/* MACROXEL v1.0.213 · entrada GitHub dinámica, sin Firebase fija */
 (function(){'use strict';
   const LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
   const routeKey='mx_route_operational_db_v1208::'+location.origin+location.pathname.replace(/\/index\.html?$/i,'/');
@@ -24,7 +24,7 @@
 })();
 (()=>{
   const CENTRAL_BASE=location.origin+'/ECOSISTEMA-MACROXEL-HOSPITAL/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/';
-  const SOURCE=CENTRAL_BASE+'index.html';
+  const SOURCE='https://raw.githubusercontent.com/sistemasmacroxel-create/ECOSISTEMA-MACROXEL-HOSPITAL/main/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html';
   function render(html){
     if(!/<html(?:\s|>)/i.test(html))throw new Error('Contenido central inválido');
     if(!/<base\s/i.test(html))html=html.replace(/<head([^>]*)>/i,'<head$1><base href="'+CENTRAL_BASE+'">');
@@ -32,7 +32,7 @@
   }
   (async()=>{
     try{
-      const r=await fetch(SOURCE+'?mxv=1.0.212&t='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, max-age=0'}});
+      const r=await fetch(SOURCE+'?mxv=1.0.213&t='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache, no-store, max-age=0'}});
       if(!r.ok)throw new Error('HTTP '+r.status);
       render(await r.text());
     }catch(err){
