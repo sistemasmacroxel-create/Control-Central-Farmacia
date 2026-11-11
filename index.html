@@ -29,7 +29,56 @@
     'https://raw.githubusercontent.com/sistemasmacroxel-create/ECOSISTEMA-MACROXEL-HOSPITAL/f0c945022ef1ed0358c970855d74abd6ccad375d/MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html',
     CENTRAL_BASE+'index.html'
   ];
+  /* Macroxel HPS v322: preservar lotes con 0 piezas en el CONTEO ALMACEN.
+     Se modifica al cargar el HTML actual; no se sustituye por una copia vieja. */
+  function includeZeroWarehouseRows(html){
+    const oldFilter="if(state.mode==='almacen')return state.rows.filter(r=>num(r?.almacen)>0);";
+    if(!html.includes(oldFilter)){
+      console.warn('[MACROXEL v322] Filtro Conteo Almacen no encontrado; verifica version.');
+      return html;
+    }
+    html=html.replace(oldFilter,"if(state.mode==='almacen')return state.rows;");
+    const anchor=/async function canonicalInventoryPayload\(force=false\)\{[\s\S]*?\}(?=\s*async function refreshInBackground\()/;
+    const updated=String.raw`async function canonicalInventoryPayload(force=false){
+  const br=await exactBranch(false),hub=window.mxSharedInventoryHub;
+  if(!hub?.allLotsRows)throw new Error('Inventario compartido no disponible.');
+  const normal=await hub.allLotsRows(force),rows=Array.isArray(normal)?normal.slice():[];
+  // Lotes con 0 ALMACEN/0 ESTANTES: nunca agregarlos al modulo de transferencias.
+  // La fuente autoritativa es inventory_lots_by_key del Sistema Principal.
+  const normKey=v=>txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  const identity=r=>txt(r.inventoryId)||[normKey(r.clave),normKey(r.lote),normKey(r.caducidad)].join('|');
+  const seen=new Set(rows.map(identity));
+  let root=null;
+  try{root=await window.mxCpmCache?.preloadLots?.(force)}catch(_e){}
+  const catalog=window.mxCpmCache?.getLocal?.()||[],byKey=new Map();
+  if(Array.isArray(catalog))for(const p of catalog){const c=normKey(p?.clave||p?.csg||p?.codigo);if(c)byKey.set(c,p)}
+  for(const [k,payload] of Object.entries(root||{})){
+    if(!payload||!Array.isArray(payload.items))continue;
+    let clave=normKey(payload.c);
+    if(!clave)try{const raw=k.replace(/-/g,'+').replace(/_/g,'/');clave=normKey(decodeURIComponent(escape(atob(raw+'='.repeat((4-raw.length%4)%4)))))}catch(_e){}
+    if(!clave)continue;
+    const cat=byKey.get(clave)||{},descripcion=txt(cat.descripcion||cat.nombre||clave);
+    for(const a of payload.items){
+      if(!Array.isArray(a)||a.length<6)continue;
+      const almacen=Math.max(0,num(a[4])),estantes=Math.max(0,num(a[5]));
+      if(almacen>0||estantes>0)continue;
+      const r={inventoryId:txt(a[0]),clave,descripcion,lote:txt(a[1]),caducidad:txt(a[2]),
+        codigo_barras:txt(a[3]),almacen:0,estantes:0,existencia:0,unidad:txt(a[6]||cat.unidad),
+        clasificacion:txt(a[7]||cat.clasificacion),restriccion:txt(a[8]||cat.restriccion),
+        ubicacion:txt(a[9])};
+      const id=identity(r);if(!seen.has(id)){seen.add(id);rows.push(r)}
+    }
+  }
+  return{br,payload:{items:rows,meta:{updatedAt:new Date().toISOString(),updatedAtText:'Inventario Principal: lotes con y sin existencias'}}};
+}`;
+    if(!anchor.test(html)){
+      console.warn('[MACROXEL v322] Carga del Conteo no localizada; no se aplico transformacion.');
+      return html;
+    }
+    return html.replace(anchor,updated);
+  }
   function render(html){
+    html=includeZeroWarehouseRows(html);
     if(!/<html(?:\s|>)/i.test(html))throw new Error('Contenido central inválido');
     if(!/<base\s/i.test(html))html=html.replace(/<head([^>]*)>/i,'<head$1><base href="'+CENTRAL_BASE+'">');
     document.open();document.write(html);document.close();
