@@ -43,49 +43,25 @@
   const br=await exactBranch(false),hub=window.mxSharedInventoryHub;
   if(!hub?.allLotsRows)throw new Error('Inventario compartido no disponible.');
   const normal=await hub.allLotsRows(force),rows=Array.isArray(normal)?normal.slice():[];
-  // Lotes con 0 ALMACEN/0 ESTANTES: nunca agregarlos al modulo de transferencias.
-  // La fuente autoritativa es inventory_lots_by_key del Sistema Principal.
-  const normKey=v=>txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-  const identity=r=>txt(r.inventoryId)||[normKey(r.clave),normKey(r.lote),normKey(r.caducidad)].join('|');
-  const seen=new Set(rows.map(identity));
-  // La fotografía COMPLETA de Inventario Principal conserva lotes con cero
-  // que el índice compacto no publica. Nunca se inventa un lote desde CPM.
-  try{
-    const full=await window.mxViewerFetchJson?.('/inventory_visor/'+encodeURIComponent(br)+'/lots');
-    const extra=Array.isArray(full?.items)?full.items:[];
-    for(const x of extra){
-      if(!x||typeof x!=='object')continue;
-      const a=Math.max(0,num(x.almacen)),e=Math.max(0,num(x.estantes));
-      if(a>0||e>0)continue;
-      const r={inventoryId:txt(x.inventoryId||x._id||x.id),clave:txt(x.clave||x.codigo),
-        descripcion:txt(x.descripcion||x.nombre||x.clave),lote:txt(x.lote||x.lot),
-        caducidad:txt(x.caducidad||x.cad),codigo_barras:txt(x.codigo_barras||x.codigoBarras),
-        almacen:0,estantes:0,existencia:0,unidad:txt(x.unidad),
-        clasificacion:txt(x.clasificacion),restriccion:txt(x.restriccion),ubicacion:txt(x.ubicacion)};
-      if(!r.clave)continue;
-      const id=identity(r);if(!seen.has(id)){seen.add(id);rows.push(r)}
-    }
-  }catch(_e){/* si falla la lectura completa, conservar la vista compacta sin inventar datos */}
-  let root=null;
-  try{root=await window.mxCpmCache?.preloadLots?.(force)}catch(_e){}
-  const catalog=window.mxCpmCache?.getLocal?.()||[],byKey=new Map();
-  if(Array.isArray(catalog))for(const p of catalog){const c=normKey(p?.clave||p?.csg||p?.codigo);if(c)byKey.set(c,p)}
-  for(const [k,payload] of Object.entries(root||{})){
-    if(!payload||!Array.isArray(payload.items))continue;
-    let clave=normKey(payload.c);
-    if(!clave)try{const raw=k.replace(/-/g,'+').replace(/_/g,'/');clave=normKey(decodeURIComponent(escape(atob(raw+'='.repeat((4-raw.length%4)%4)))))}catch(_e){}
-    if(!clave)continue;
-    const cat=byKey.get(clave)||{},descripcion=txt(cat.descripcion||cat.nombre||clave);
-    for(const a of payload.items){
-      if(!Array.isArray(a)||a.length<6)continue;
-      const almacen=Math.max(0,num(a[4])),estantes=Math.max(0,num(a[5]));
-      if(almacen>0||estantes>0)continue;
-      const r={inventoryId:txt(a[0]),clave,descripcion,lote:txt(a[1]),caducidad:txt(a[2]),
-        codigo_barras:txt(a[3]),almacen:0,estantes:0,existencia:0,unidad:txt(a[6]||cat.unidad),
-        clasificacion:txt(a[7]||cat.clasificacion),restriccion:txt(a[8]||cat.restriccion),
-        ubicacion:txt(a[9])};
-      const id=identity(r);if(!seen.has(id)){seen.add(id);rows.push(r)}
-    }
+  // Lotes en 0 sólo para Conteo Almacén; inventario normal permanece intacto.
+  if(state.mode==='almacen'){
+    const normalize=v=>txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    const identity=r=>txt(r.inventoryId)||[normalize(r.clave),normalize(r.lote),normalize(r.caducidad)].join('|');
+    const seen=new Set(rows.map(identity));
+    try{
+      const full=await window.mxViewerFetchJson?.('/inventory_visor/'+encodeURIComponent(br)+'/lots');
+      for(const x of (Array.isArray(full?.items)?full.items:[])){
+        if(!x||typeof x!=='object')continue;
+        if(Math.max(0,num(x.almacen))>0||Math.max(0,num(x.estantes))>0)continue;
+        const r={inventoryId:txt(x.inventoryId||x._id||x.id),clave:txt(x.clave||x.codigo),
+          descripcion:txt(x.descripcion||x.nombre||x.clave),lote:txt(x.lote||x.lot),
+          caducidad:txt(x.caducidad||x.cad),codigo_barras:txt(x.codigo_barras||x.codigoBarras),
+          almacen:0,estantes:0,existencia:0,unidad:txt(x.unidad),
+          clasificacion:txt(x.clasificacion),restriccion:txt(x.restriccion),ubicacion:txt(x.ubicacion)};
+        if(!r.clave)continue;
+        const id=identity(r);if(!seen.has(id)){seen.add(id);rows.push(r)}
+      }
+    }catch(_e){/* Sin fotografía completa, no inventar existencias. */}
   }
   return{br,payload:{items:rows,meta:{updatedAt:new Date().toISOString(),updatedAtText:'Inventario Principal: lotes con y sin existencias'}}};
 }`;
