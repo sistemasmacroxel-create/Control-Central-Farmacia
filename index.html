@@ -48,6 +48,24 @@
   const normKey=v=>txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const identity=r=>txt(r.inventoryId)||[normKey(r.clave),normKey(r.lote),normKey(r.caducidad)].join('|');
   const seen=new Set(rows.map(identity));
+  // La fotografía COMPLETA de Inventario Principal conserva lotes con cero
+  // que el índice compacto no publica. Nunca se inventa un lote desde CPM.
+  try{
+    const full=await window.mxViewerFetchJson?.('/inventory_visor/'+encodeURIComponent(br)+'/lots');
+    const extra=Array.isArray(full?.items)?full.items:[];
+    for(const x of extra){
+      if(!x||typeof x!=='object')continue;
+      const a=Math.max(0,num(x.almacen)),e=Math.max(0,num(x.estantes));
+      if(a>0||e>0)continue;
+      const r={inventoryId:txt(x.inventoryId||x._id||x.id),clave:txt(x.clave||x.codigo),
+        descripcion:txt(x.descripcion||x.nombre||x.clave),lote:txt(x.lote||x.lot),
+        caducidad:txt(x.caducidad||x.cad),codigo_barras:txt(x.codigo_barras||x.codigoBarras),
+        almacen:0,estantes:0,existencia:0,unidad:txt(x.unidad),
+        clasificacion:txt(x.clasificacion),restriccion:txt(x.restriccion),ubicacion:txt(x.ubicacion)};
+      if(!r.clave)continue;
+      const id=identity(r);if(!seen.has(id)){seen.add(id);rows.push(r)}
+    }
+  }catch(_e){/* si falla la lectura completa, conservar la vista compacta sin inventar datos */}
   let root=null;
   try{root=await window.mxCpmCache?.preloadLots?.(force)}catch(_e){}
   const catalog=window.mxCpmCache?.getLocal?.()||[],byKey=new Map();
